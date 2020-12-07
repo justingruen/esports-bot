@@ -1,5 +1,5 @@
-# teacher-helper
- This is the source code for a discord bot to move members between channels.
+# esports-bot
+ This is the source code for a discord bot to easily provide roles to users through reactions.
  
  It was built using the Discord and Discord.js libraries. 
  
@@ -13,7 +13,5 @@ $ npm install
 $ node index.js
 
 # Add the bot to your server by heading to:
-https://discord.com/api/oauth2/authorize?client_id=751089692153348118&permissions=0&scope=bot
+https://discord.com/api/oauth2/authorize?client_id=764122203922628608&permissions=268512368&scope=bot
 ```
-
-Note: Commands only work if the user has the role of "Teacher" (or "teacher")
