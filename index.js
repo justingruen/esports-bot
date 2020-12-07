@@ -1,19 +1,36 @@
 // require the discord.js module
 const Discord = require('discord.js');
 // require your app's token
-const { prefix, token } = require('./config.json');
+const { prefix, token} = require('./config.json');
 
 // create a new Discord client
-const client = new Discord.Client();
+const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION']});
+
+//Json list of reactions to keep track of guilds and their reacts
+var reactionList = { }
 
 // when the client is ready, run this code
 // this event will only trigger one time after logging in
 client.once('ready', () => {
-	console.log('Ready!');
+    console.log('Ready!');
 });
 
 
-client.on('message', message => {
+//Note: Honestly, I have no clue how async/await works, but the code I got one of the lines from had it so I'm just using it
+
+//what to do if they change the channelid... will that change anything?  --> should work, needs more extensive testing
+
+//Also note, if I'd like to keep the list even when it resets, every time i update it I could export it
+//to a seperate file, and in the client.once('ready') I could import it
+
+
+//listroles and listusers [emoji]
+
+function checkGuilds(guildName) {       //checks if guild is empty in reactionList. If so, delete (bc its empty, obv)
+    if (reactionList[guildName][0] === undefined) delete reactionList[guildName]
+}
+
+client.on('message', async message => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
 
     // const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -22,284 +39,207 @@ client.on('message', message => {
 
     var command = message.content.substr(1).split(' ')[0];
     const args = message.content.slice(command.length+2).split(', ');
+    console.log('===================')
     console.log(command)
     console.log(args)
+    console.log('===================')    
     
-    
-
+    //Make it so once its reacted with a green check, the messages will delete... how will that effect everything else? Maybe just leave it.
     if (command === 'help') {
-        message.channel.send("Only users with the teacher role can use these commands!")
-        message.channel.send("!yoink channel1, channel 2, etc \n     Pulls all users from the given voice channels into the voice channel the author is in.\n");
-        message.channel.send("!split [number/percent (ie. 5 or 33%) of students per channel], channel1, channel2, etc \n     Splits all students in the voice channel across the channels provided based on the number or percent also provided. For instance, if you'd like 10 students per channel out of 35 students, you need to provide 3 voice channels.\n");
-        message.channel.send("!yeet channel1, channel2, etc \n      Automatically equally splits students into the channels\n");
-        message.channel.send("!studentcount \n      Displays the number of students currently in the author's voice channel\n");
-        return
-    }
-
-    if (command === 'test') {
-        return
-    }
-
-    if (command === 'studentcount') {
-        if (message.member.voice.channel === null){
-            return message.reply("Please join a voice channel first!")
+        if (message.member.roles.cache.some(role => role.name === 'Administrator')) {
+            message.channel.send("Notes: Only users with the Administrator role can use these commands. Does not work with custom emojis. Delete a bot message for the emojis to be available again. ")
+            message.channel.send("Also for convenience, all messages not-addemoji related are deleted in 10 secs.")
+            message.channel.send("Please use !helpcommands for the command list, and use !setchannel to get started.")
+        } else {
+            message.channel.send('Only Administrator role can call commands!').then(msg => { msg.delete({ timeout: 10000 })});
         }
-        const ele = ["There are ", message.member.voice.channel.members.size - 1, " students."]
-        return message.channel.send(ele.join(''));
+        return
+    }
+
+    if (command === 'helpcommands') {
+        if (message.member.roles.cache.some(role => role.name === 'Administrator')) {
+            message.channel.send("\n!setchannel \n     Set the channel used for the role reactions!.\n");
+            message.channel.send("\n!addemoji [game1], [reaction1 (ie. :turkey:)], [role1] etc \n     Creates a message with reactions members can click on to give themselves a role. Please make sure the emoji is correct!\n");
+            message.channel.send("\n!listemojis \n     List emojis currently in use, and their game and role.\n");
+        }
+        return
     }
 
 
-    //pushes all users in given voice channels into the author's voice channel
-    if (command === 'yoink') {   //struct: !yoink channel1 channel2 etc
-        if (!args.length) {
-			return message.channel.send(`You didn't provide any arguments, ${message.author}!`);
-        } 
-        else if (message.member.roles.cache.some(role => role.name === 'teacher' || role.name === 'Teacher')){      
-            //check whether the author is in a vc & has role of 'teacher', if so grab their voice channel ID
-            const userVC = message.member.voice;
-            if (!userVC.channel) return message.reply("Please first join a voice channel.");
-            else {
-                //create member list and voice channel ID list
-                var memberList = [];
-                var vcIDList = [];
-                //get the msg author's vc id - vcIDList[0] will be reserved for the destination voice channel ID
-                vcIDList.push(userVC.channel.id);
-            }
-            
-            
-            //run through all args, add their users to a memberList
-            for (i = 0; i < args.length; i++){      //loop through all arguments
-                message.guild.channels.cache.forEach(channel => {       //loop through all channel names
-                    if (channel.type === 'voice' && channel.name === args[i]) {     //if voice and name matches an arg, do x
-                        vcIDList.push(channel.id);      //push channel id on vcIDList
-                        channel.members.forEach(member => memberList.push(member.user.id));  //push all member ID's into memberList
-                    }
-                });
-            }
-            
-            //push all members in memberList into author's voice channel
-            var member = message.guild.members.cache.get(memberList[0])  //init var outside of loop so it only happens once  
-            if (memberList.length === 0) return message.reply("There were no members in the given channels");
-            if (vcIDList.length === 0) return message.reply("There were no voice channels provided");
-            else { for (i = 0; i < memberList.length; i++){
-                    member = message.guild.members.cache.get(memberList[i]);      
-                    member.voice.setChannel(vcIDList[0]);        //this could just be moved to the if block up above honestly
-                    // this way moves all users near-at-once though. Prolly takes longer though bc of the added member = line
+    //Gonna need to redo this, don't forget for if its empty
+    if (command === 'listemojis') {     //eventually change it to list all role/react/game combos?
+        if(!reactionList.hasOwnProperty(message.guild.name)) {
+            message.channel.send("There aren't any emojis yet!").then(msg => { msg.delete({ timeout: 10000 })}) 
+            return
+        }
+
+        if (message.member.roles.cache.some(role => role.name === 'Administrator')) {
+            var emojiList = ''
+            for(var key in reactionList) {
+                if(key != 'channelid') {
+                    emojiList += `\n${key}     ${reactions_games[key]}     ${reactions_roles[key]}`
                 }
             }
-        } else message.reply("You do not have a teacher role!");
+            emojiList = '' 
+            ? message.channel.send(emojiList).then(msg => { msg.delete({ timeout: 20000 })}) 
+            : message.channel.send("There aren't any emojis yet!").then(msg => { msg.delete({ timeout: 10000 })}) 
+
+        }
+        return
     }
 
+    if (command === 'setchannel') { //setchannel            //Eventually make for multiple channels? eh
+        reactionList[message.guild.name] = { "channelid": `${message.channel.id}` }
 
-
-    if (command === 'split') {   //struct: !comehere 33% voicechannel1 voicechannel2 OR !comehere 4 voicechannel1 voicechannel2
-        if (args.length < 2) {
-			return message.channel.send(`You didn't provide any arguments, ${message.author}!`);
-		} else if (mmessage.member.roles.cache.some(role => role.name === 'teacher' || role.name === 'Teacher')){      
-            //take in arguments: number/percent, vc's
-            const number = parseInt(args[0].substring(0, str.length-1));
-            const percent = false;
-            if (args[0].includes("%")) percent = true;
-            else{ percent = false;}
-            var vcIDList = []
-            var vcNameList = []
-            for (i = 1; i < args.length; i++){
-                vcNameList.push(args[i]);
+        for (var key in reactionList) {     // test this first
+            if(key != 'channelid') {
+                delete reactionList[message.guild.name][key]
             }
-
-            //find NumbStudents for the second If statement below!!!!
-            numStudents = message.member.voice.channel.members.size - 1
-
-            //check whether the number of channels listed is acceptable
-            if (percent && Math.floor(100/parseInt(number)) === vcIDList.length && number <= 50){
-                return message.reply(`Not enough channels provided. ${args[0]} requires ${Math.floor(100/parseInt(number))} chanenels`)
-            }
-            if (percent === false && Math.floor(numStudents/parseInt(number)) === vcIDList.length){
-                return message.reply(`Not enough channels provided. ${args[0]} students per channel requires ${Math.floor(100/parseInt(number))} chanenels`)
-            }
-
-            //loop through the vcNames to get the ID's
-            for (i = 0; i < vcNameList.length; i++){
-                message.guild.channels.cache.forEach(channel => {
-                    if (channel.type === 'voice' && channel.name === vcNameList[i]){
-                        vcIDList[i] = channel.id;
-                    }
-                });
-            }
-
-            //move students if its a percentage
-            if (percent){
-                //count of students per voice channel, to keep track of how many we've put so far
-                var vcStudentPushedCount = [vcNameList.length].fill(0)
-                //bool for each channel if its already had a leftover student added in current iteration
-                var vcLeftOverPushBool = [vcNameList.length].fill(false)
-                var channelNum = 0
-                var studentsLeavingPerChannel = (number / 100) *  numStudents;    //# number of max students per channel (based only on percent)
-                message.member.voice.channel.members.forEach(member => {
-                    //dont move the author or bots
-                    if (member.id != message.author.id && member.user.bot === false){
-                        //if all channels are full, move here instead to place leftover students randomly
-                        //the following says: if some item is found that isn't equal to studentsLeavingPerChannel, return true. 
-                        //if everything is equal to StudentsLeavingPerChannel, it outputs false. if outputs false, it means we're on the leftovers
-                        if (vcStudentPushedCount.some(item => item !== studentsLeavingPerChannel) === false) {
-                            //pick a random channel
-                            channelNum = Math.floor(Math.random() * vcStudentPushedCount.length)
-                            //while that channel has already had someone put in it, pick another channel
-                            while (vcLeftOverPushBool[channelNum] === true){
-                                channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                            }
-                            //send the member to a vc and set array val to true to note that a student has been put there in this iteration
-                            member.voice.setChannel(vcIDList[channelNum]);
-                            vcLeftOverPushBool[channelNum] = true;
-
-                            //if all leftovers have been placed for current iteration
-                            if (vcLeftOverPushBool.some(item => item !== true) === false) vcLeftOverPushBool.fill(false);
-                        }  
-                        else{
-                            //set channelNum equal to a random channel
-                            channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                            //while that channel size is equal to studentsLeavingPerChannel, pick another channel
-                            while (vcStudentPushedCount[channelNum] === studentsLeavingPerChannel){
-                                channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                            }
-                            member.voice.setChannel(vcIDList[channelNum]);
-                            vcStudentPushedCount[channelNum] += 1;
-                        }
-                    }
-                });
-            }
-
-            if(percent === false){
-                //count of students per voice channel, to keep track of how many we've put so far
-                var vcStudentPushedCount = [vcNameList.length].fill(0)
-                //bool for each channel if its already had a leftover student added in current iteration
-                var vcLeftOverPushBool = [vcNameList.length].fill(false)
-                var channelNum = 0
-                var studentsLeavingPerChannel = number;    //# number of max students per channel (based only on percent)
-                message.member.voice.channel.members.forEach(member => {
-                    //dont move the author or bots
-                    if (member.id != message.author.id && member.user.bot === false){
-                        //if all channels are full, move here instead to place leftover students randomly
-                        //the following says: if some item is found that isn't equal to studentsLeavingPerChannel, return true. 
-                        //if everything is equal to StudentsLeavingPerChannel, it outputs false. if outputs false, it means we're on the leftovers
-                        if (vcStudentPushedCount.some(item => item !== studentsLeavingPerChannel) === false) {
-                            //pick a random channel
-                            channelNum = Math.floor(Math.random() * vcStudentPushedCount.length)
-                            //while that channel has already had someone put in it, pick another channel
-                            while (vcLeftOverPushBool[channelNum] === true){
-                                channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                            }
-                            //send the member to a vc and set array val to true to note that a student has been put there in this iteration
-                            member.voice.setChannel(vcIDList[channelNum]);
-                            vcLeftOverPushBool[channelNum] = true;
-
-                            //if all leftovers have been placed for current iteration
-                            if (vcLeftOverPushBool.some(item => item !== true) === false) vcLeftOverPushBool.fill(false);
-                        }  
-                        else{
-                            //set channelNum equal to a random channel
-                            channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                            //while that channel size is equal to studentsLeavingPerChannel, pick another channel
-                            while (vcStudentPushedCount[channelNum] === studentsLeavingPerChannel){
-                                channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                            }
-                            member.voice.setChannel(vcIDList[channelNum]);
-                            vcStudentPushedCount[channelNum] += 1;
-                        }
-                    }
-                });
-            }
-        } else message.reply("You do not have a teacher role!");
+        }
+        message.channel.send(`Channel ${message.channel.name} set!`).then(msg => { msg.delete({ timeout: 10000 })}) 
+        message.delete({ timeout: 10000 })
+        return
     }
 
+    if (command === 'addemoji') {   //addemoji game1, reaction1, role1 etc
+        if(reactionList[message.guild.name] === undefined) {
+            message.channel.send('Please use !setchannel first to set a channel!').then(msg => { msg.delete({ timeout: 10000 })}) 
+            message.delete({ timeout: 10000 })
+            return
+        }
 
+        if (args.length < 3 || (args.length % 3) != 0 ) {
+            message.delete({ timeout: 10000 })
+            message.channel.send(`You didn't provide enough arguments, ${message.author}!`).then(msg => { msg.delete({ timeout: 10000 })});
+            return
+        } else if (message.member.roles.cache.some(role => role.name === 'Administrator')){
 
-    if (command === 'yeet') {   //!yeet channel1 channel2 etc.
-        if (args.length < 1) {
-            return message.channel.send(`You didn't provide any channels, ${message.author}!`);
-		} else if (message.member.roles.cache.some(role => role.name === 'teacher' || role.name === 'Teacher')){      
-            //take in arguments: vc's
-            if (args[0].includes("%")) percent = true;
-            else{ percent = false;}
-            var vcIDList = []
-            var vcNameList = []
-            for (i = 0; i < args.length; i++){
-                vcNameList.push(args[i]);
-            }
-
-            //find NumbStudents for the second If statement below
-            numStudents = message.member.voice.channel.members.size - 1
-
-            //I dont think this is needed for this one - or any of them technically, although the others will be weird if theres more
-            // channels than needed. Maybe I still need to check if there are enough channels though in the others
-            // //check whether the number of channels listed is acceptable
-            // if (percent && Math.floor(100/parseInt(number)) === vcIDList.length && number <= 50){
-            //     return message.reply(`Not enough channels provided. ${args[0]} requires ${Math.floor(100/parseInt(number))} chanenels`)
-            // }
-
-            //loop through the vcNames to get the ID's
-            for (i = 0; i < vcNameList.length; i++){
-                message.guild.channels.cache.forEach(channel => {
-                    if (channel.type === 'voice' && channel.name === vcNameList[i]){
-                        vcIDList[i] = channel.id;
-                    }
-                });
-            }
-
-            console.log(vcNameList)
-            console.log(vcIDList)
-
-
-            //count of students per voice channel, to keep track of how many we've put so far
-            var vcStudentPushedCount = [vcNameList.length].fill(0)
-            //bool for each channel if its already had a leftover student added in current iteration
-            var vcLeftOverPushBool = [vcNameList.length].fill(false)
-            var channelNum = 0
-            var studentsLeavingPerChannel = Math.floor(numStudents / vcIDList.length);    //# number of max students per channel (based only on percent)
-            // Checks the students leaving per channel wont be 0 which happens when more channels than students.
-            // I could set it to equal the remainder if its 0, but this is fine too for now.
-            if (studentsLeavingPerChannel === 0){
-                return message.channel.send("Not enough channels inputted for it to split the students!")
-            }
-            message.member.voice.channel.members.forEach(member => {
-                //dont move the author or bots
-                if (member.id != message.author.id && member.user.bot === false){
-                    //if all channels are full, move here instead to place leftover students randomly
-                    //the following says: if some item is found that isn't equal to studentsLeavingPerChannel, return true. 
-                    //if everything is equal to StudentsLeavingPerChannel, it outputs false. if outputs false, it means we're on the leftovers
-                    if (vcStudentPushedCount.some(item => item !== studentsLeavingPerChannel) === false) {
-                        //pick a random channel
-                        channelNum = Math.floor(Math.random() * vcStudentPushedCount.length)
-                        //while that channel has already had someone put in it, pick another channel
-                        while (vcLeftOverPushBool[channelNum] === true){
-                            channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                        }
-                        //send the member to a vc and set array val to true to note that a student has been put there in this iteration
-                        member.voice.setChannel(vcIDList[channelNum]);
-                        vcLeftOverPushBool[channelNum] = true;
-
-                        //if all leftovers have been placed for current iteration
-                        if (vcLeftOverPushBool.some(item => item !== true) === false) vcLeftOverPushBool.fill(false);
-                    }  
-                    else{
-                        console.log("Got here!")
-                        //set channelNum equal to a random channel
-                        channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                        console.log(channelNum)
-                        console.log(member.user.username)
-                        //while that channel size is equal to studentsLeavingPerChannel, pick another channel
-                        while (vcStudentPushedCount[channelNum] === studentsLeavingPerChannel){
-                            channelNum = Math.floor(Math.random() * vcStudentPushedCount.length);
-                        }
-                        console.log(channelNum)
-                        member.voice.setChannel(vcIDList[channelNum]);
-                        vcStudentPushedCount[channelNum] += 1;
-                    }
+            
+            //Make sure roles exist... also, length-1? -2? is it right? Also check if game has ' React ' in it. If it does, messes up the delete
+            for (i = 2; i < args.length; i+=3) {
+                if (message.guild.roles.cache.find(r => r.name === args[i]) === undefined) {
+                    message.channel.send(`Role ${args[i]} does not exist. Please recheck the spelling and try again.`).then(msg => { msg.delete({ timeout: 10000 })})
+                    // delete original message
+                    message.delete({ timeout: 10000 })
+                    // checkGuilds(message.guild.name)
+                    return
                 }
-            });
-        } else message.reply("You do not have a teacher role!");
+                if (args[i-2].includes(' React ')) {
+                    message.channel.send(`If you're seeing this message, one of the games has " React " in it. It was unlikely, but, here we are. Sorry. Please call the game something else`).then(msg => { msg.delete({ timeout: 10000 })})
+                    // delete original message
+                    message.delete({ timeout: 10000 })
+                    // checkGuilds(message.guild.name)
+                    return
+                }
+            }
+
+            //Make sure emoji exists
+            //idk how, so... just hope it exists
+            
+            //Make sure emoji isnt already in dic
+            for (i = 1; i < args.length; i+=3) {
+                if (!reactionList[message.guild.name].hasOwnProperty(args[i])) {
+                    reactionList[message.guild.name][args[i]] = {
+                        'role': `${args[i+1]}`,
+                        'game': `${args[i-1]}`
+                    }
+                } else {
+                    message.channel.send(`Reaction ${args[i]} already exists!`).then(msg => { msg.delete({ timeout: 10000 })})
+                }
+            }
+
+            
+            var description = `React to this message to get your roles!\n `
+
+            //length-1? -2? I dont think it matters
+            for (i = 0; i < args.length-1; i+=3) {
+                description += `React ${args[i+1]} to get ${args[i]} as a role.\n `;
+            }
+
+            let embed = new Discord.MessageEmbed()
+            .setDescription(description)
+            .setColor('BLUE')
+            let msgEmbed = await client.channels.cache.get(reactionList[message.guild.name]['channelid']).send(embed)
+            for(i = 0; i < args.length-1; i+=3){
+                msgEmbed.react(args[i+1])
+            }
+
+            // delete original message
+            message.delete({ timeout: 10000 })
+            
+        }
     }
 });
 
-// use the token to log into discord
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    if(!reactionList.hasOwnProperty(reaction.message.guild.name)) return
+
+    if (reaction.message.channel.id === reactionList[reaction.message.guild.name]['channelid']) {
+        if(reaction.message.partial) await reaction.message.fetch();
+        if(reaction.partial) await reaction.fetch();
+
+        if (user.bot) return
+        if (!reaction.message.guild) return
+
+        //the first if (the channelid one) was originally here
+        if (reaction.message.authorid === client.user.id) {
+            try {
+                await reaction.message.guild.members.cache.get(user.id).roles.add(reaction.message.guild.roles.cache.find(r => r.name === reactionList[reaction.message.guild.name][reaction.emoji.name]['role']))
+            } catch (error) {
+                reaction.message.channel.send("@Administrator, The block trying to be used is broken. Please recreate the !addemoji block.")
+            }
+        }
+    }
+})
+
+client.on('messageReactionRemove', async (reaction, user) => {
+    if(!reactionList.hasOwnProperty(reaction.message.guild.name)) return
+
+    if (reaction.message.channel.id === reactionList[reaction.message.guild.name]['channelid']) {
+        if(reaction.message.partial) await reaction.message.fetch();
+        if(reaction.partial) await reaction.fetch();
+
+        if (user.bot) return
+        if (!reaction.message.guild) return
+
+        //the first if (the channelid one) was originally here
+        if (reaction.message.author.id === client.user.id) {
+            try {   //I think .catch works too, but dont fix it if it aint broke
+                await reaction.message.guild.members.cache.get(user.id).roles.remove(reaction.message.guild.roles.cache.find(r => r.name === reactionList[reaction.message.guild.name][reaction.emoji.name]['role']))
+            } catch (error) {
+                reaction.message.channel.send("@Administrator, The block trying to be used is broken. Please recreate the !addemoji block.")
+            }
+        }
+    }
+})
+
+client.on('messageDelete', function(message) {
+    if(!reactionList.hasOwnProperty(message.guild.name)) return
+
+    //MAKE SURE TO Check, if the guild then has no reaction entries, delete the guild from reactionList
+
+    // search message for the reactions
+    if (message.content === 'Updated! The emojis are now available again for use!') return
+
+    if (message.channel.id === reactionList[message.guild.name]['channelid']) {
+        if (message.embeds.length === 0) return
+        if (message.author.id === client.user.id) {
+            for (let embed of message.embeds) {
+                for (i = 0; i < embed.description.split(' ').length; i++) {
+                    if (embed.description.split(' ')[i] === 'React') {
+                        //CHECK WHETHER ITS IN REACTIONLIST FIRST incase its from a previous bot reset. can't hurt. or if too lazy just do try...catch i guess. idek
+                        delete reactionList[message.guild.name][embed.description.split(' ')[i+1].emoji.name]
+                    }
+                }                
+            }
+
+            //Edit so it gives all emojis
+            message.channel.send('Updated! The emojis are now available again for use!').then(msg => { msg.delete({ timeout: 10000 })});
+        }
+    }
+})
+
 client.login(token);
+
+// !addemoji game2, :poop:, rocket league

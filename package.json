@@ -1,32 +1,15 @@
 {
-<<<<<<< HEAD
   "name": "mover-bot",
   "version": "1.0.0",
-  "description": "Discord bot to move members between channels",
-=======
-  "name": "teacher-helper",
-  "version": "1.0.0",
   "description": "Discord bot to help manage students",
->>>>>>> 307d211e7bb69b5019df5c6bcd4c1727775a58d7
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
   "author": "Justin Gruen",
-<<<<<<< HEAD
-  "license": "ISC",
-  "dependencies": {
-    "discord.js": "^12.3.1",
-    "eslint": "^7.8.1"
-=======
   "license": "MIT",
   "dependencies": {
     "discord.js": "^12.3.1",
     "eslint": "^7.8.1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/justingruen/teacher-helper"
->>>>>>> 307d211e7bb69b5019df5c6bcd4c1727775a58d7
   }
 }
